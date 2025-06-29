@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubik's Cube Solver</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #081d48;
+            color: #82a6d4;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .container {
+            max-width: 1400px;
+            width: 100%;
+        }
+        .cube-display, .solution-steps {
+            background-color: #2d3748;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            min-height: 500px; /* Ensure consistent height for layout */
+            display: flex;
+            flex-direction: column;
+        }
+        .solution-step {
+            background-color: #2d3748;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .button-primary {
+            background-color: #4299e1;
+            color: white;
+        }
+        .button-primary:hover:not(:disabled) {
+            background-color: #3182ce;
+        }
+        .button-secondary {
+            background-color: #a0aec0;
+            color: #1a202c;
+        }
+        .button-secondary:hover:not(:disabled) {
+            background-color: #718096;
+        }
+        #cubeSvgContainer svg {
+            width: 100%;
+            max-width: 350px; /* Keep cube size reasonable */
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .solution-steps-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        /* Spinner styles */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4299e1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-8 text-blue-300">Rubik's Cube Solver</h1>
+
+        <div class="flex flex-col md:flex-row gap-8 mb-8">
+            <div class="flex-1 cube-display">
+                <h2 class="text-2xl font-semibold mb-4 text-center">Current Cube State</h2>
+                <div id="cubeSvgContainer" class="flex justify-center items-center h-80 mb-6">
+                    </div>
+
+                <div class="flex flex-wrap justify-center gap-2 mb-4">
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('U')">U</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('U_PRIME')">U'</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('D')">D</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('D_PRIME')">D'</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('L')">L</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('L_PRIME')">L'</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('R')">R</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('R_PRIME')">R'</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('F')">F</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('F_PRIME')">F'</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('B')">B</button>
+                    <button class="button button-primary" onclick="rubiksCube.manualRotate('B_PRIME')">B'</button>
+                </div>
+
+                <div class="flex justify-center gap-4">
+                    <button id="scrambleButton" class="button button-secondary">Scramble Cube</button>
+                    <button id="solveButton" class="button button-primary">Solve Cube</button>
+                </div>
+            </div>
+
+            <div class="flex-1 solution-steps">
+                <h2 class="text-2xl font-semibold mb-4 text-center">Solution Steps</h2>
+                <div id="solverStatus" class="text-center mb-4 flex flex-col items-center">
+                    </div>
+                <div id="solutionStepsContainer" class="solution-steps-content">
+                    <p class="text-gray-400 text-center">Scramble the cube to see solution steps.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="cubeRenderer.js"></script>
+    <script src="rubiksCube.js"></script>
+    <script src="solver.js"></script>
+    <script>
+        let rubiksCube; // Global instance of the cube
+        let isSolving = false;
+
+        function setSolverStatus(message, showSpinner = false) {
+            const statusDiv = document.getElementById('solverStatus');
+            statusDiv.innerHTML = `
+                ${showSpinner ? '<div class="spinner mb-2"></div>' : ''}
+                <p>${message}</p>
+            `;
+            if (showSpinner) {
+                statusDiv.querySelector('.spinner').style.display = 'block';
+            } else {
+                statusDiv.innerHTML = `<p>${message}</p>`; // Remove spinner if not needed
+            }
+        }
+
+        function toggleButtons(disabled) {
+            document.getElementById('scrambleButton').disabled = disabled;
+            document.getElementById('solveButton').disabled = disabled;
+            const manualRotateButtons = document.querySelectorAll('.cube-display button:not(#scrambleButton):not(#solveButton)');
+            manualRotateButtons.forEach(button => button.disabled = disabled);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            rubiksCube = new RubiksCube();
+            rubiksCube.render();
+
+            document.getElementById('scrambleButton').addEventListener('click', () => {
+                if (isSolving) return;
+                toggleButtons(true);
+                setSolverStatus("Scrambling...", true);
+                setTimeout(() => { // Add a small delay to show spinner
+                    rubiksCube.scramble(25); // Scramble with 25 random moves
+                    document.getElementById('solutionStepsContainer').innerHTML = `<p class="text-gray-400 text-center">Cube scrambled! Click 'Solve Cube' to find a solution.</p>`;
+                    setSolverStatus("Cube scrambled. Ready to solve.");
+                    toggleButtons(false);
+                }, 300);
+            });
+
+            document.getElementById('solveButton').addEventListener('click', async () => {
+                if (isSolving) return;
+                isSolving = true;
+                toggleButtons(true);
+                setSolverStatus("Solving cube...", true);
+                document.getElementById('solutionStepsContainer').innerHTML = ''; // Clear previous steps
+
+                try {
+                    await solveCube(rubiksCube, document.getElementById('solutionStepsContainer'), setSolverStatus);
+                } catch (error) {
+                    console.error("Solver error:", error);
+                    setSolverStatus("An error occurred during solving. Check console for details.");
+                } finally {
+                    isSolving = false;
+                    toggleButtons(false);
+                    rubiksCube.render(); // Ensure final state is rendered
+                }
+            });
+        });
+    </script>
+</body>
+</html>
